@@ -1,13 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vite-react</title>
+    <meta
+      name="description"
+      content="未完 · zmz-cho 的数字花园。记录技术、设计，和生活里值得留下的小事。保持好奇，未完待续。"
+    />
+    <meta name="theme-color" content="#f8f7f3" />
+    <title>未完 · zmz-cho 的数字花园</title>
+    <script>
+      try {
+        const saved = localStorage.getItem('unfinished-theme')
+        document.documentElement.dataset.theme =
+          saved === 'light' || saved === 'dark'
+            ? saved
+            : matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+      } catch {
+        document.documentElement.dataset.theme = 'light'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript
+      >未完是一个关于技术、设计与日常的个人博客。请开启 JavaScript
+      以浏览文章。</noscript
+    >
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
