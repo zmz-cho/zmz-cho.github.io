@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { posts } from '../data/posts'
 import { Icon } from './Icon'
+import { useI18n } from '../i18n/context'
+import { languageTags, languageNames } from '../i18n/core'
 
 export function Search({
   open,
@@ -9,22 +10,24 @@ export function Search({
   open: boolean
   onClose: () => void
 }) {
+  const { t, locale, posts, href } = useI18n()
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
-  const normalized = query.trim().toLocaleLowerCase()
+  const normalized = query.normalize('NFKC').trim().toLocaleLowerCase(locale)
   const results = posts.filter((post) =>
     [
       post.title,
       post.summary,
-      post.category,
+      t.categories[post.category],
       ...post.tags,
       ...post.content.map((block) =>
         block.type === 'list' ? block.items.join(' ') : block.text,
       ),
     ]
       .join(' ')
-      .toLocaleLowerCase()
+      .normalize('NFKC')
+      .toLocaleLowerCase(locale)
       .includes(normalized),
   )
   useEffect(() => {
@@ -46,12 +49,12 @@ export function Search({
       <div className="search-content">
         <div className="search-heading">
           <span className="eyebrow" id="search-title">
-            在花园里找一找
+            {t.searchTitle}
           </span>
           <button
             className="icon-button"
             onClick={onClose}
-            aria-label="关闭搜索"
+            aria-label={t.searchClose}
           >
             <Icon name="close" />
           </button>
@@ -63,33 +66,40 @@ export function Search({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索文章、标签或一句话…"
-            aria-label="搜索文章"
+            placeholder={t.searchPlaceholder}
+            aria-label={t.searchLabel}
           />
         </div>
         <div className="search-summary" role="status">
-          {normalized ? `找到 ${results.length} 篇文章` : '从这些文章开始'}
+          {normalized ? t.searchCount(results.length) : t.searchStart}
         </div>
         <div className="search-results">
           {results.map((post) => (
             <a
               key={post.slug}
-              href={`#/post/${post.slug}`}
+              href={href(`/post/${post.slug}`)}
               onClick={onClose}
               className="search-result"
             >
               <div>
-                <span className="category-text">{post.category}</span>
-                <h3>{post.title}</h3>
-                <p>{post.summary}</p>
+                <span className="category-text">
+                  {t.categories[post.category]}
+                </span>
+                <h3 lang={languageTags[post.language]}>{post.title}</h3>
+                <p lang={languageTags[post.language]}>{post.summary}</p>
+                {post.language !== locale && (
+                  <span className="translation-label">
+                    {t.fallbackNote(languageNames[post.language])}
+                  </span>
+                )}
               </div>
               <Icon name="arrow" />
             </a>
           ))}
           {results.length === 0 && (
             <div className="empty-state">
-              <span>还没有找到这个想法。</span>
-              <p>试试「设计」「代码」或「写作」？</p>
+              <span>{t.searchEmpty}</span>
+              <p>{t.searchHint}</p>
               <button
                 className="text-link"
                 onClick={() => {
@@ -97,15 +107,16 @@ export function Search({
                   input.current?.focus()
                 }}
               >
-                清空搜索 <Icon name="arrow" size={16} />
+                {t.clearSearch}
+                <Icon name="arrow" size={16} />
               </button>
             </div>
           )}
         </div>
         <div className="search-footer">
-          <span>让好奇心带路。</span>
+          <span>{t.searchFooter}</span>
           <span>
-            <kbd>Esc</kbd> 关闭
+            <kbd>Esc</kbd> {t.close}
           </span>
         </div>
       </div>

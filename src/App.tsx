@@ -1,44 +1,80 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Asterisk, Icon } from './components/Icon'
 import { GardenArt, PostArt } from './components/Artwork'
 import { Search } from './components/Search'
-import { categories, formatDate, notes, posts } from './data/posts'
-import type { Category, ContentBlock, Post } from './data/posts'
+import { categories } from './data/types'
+import type { Category, ContentBlock, LocalizedPost } from './data/types'
 import { site } from './data/site'
+import { createI18n, I18nContext, useI18n } from './i18n/context'
+import {
+  languageNames,
+  languageTags,
+  locales,
+  localeHref,
+  parseRoute,
+  preferredLocale,
+  isLocale,
+} from './i18n/core'
 import './App.css'
+import './i18n.css'
 
 const navigation = [
-  { href: '#/', label: '文章' },
-  { href: '#/notes', label: '碎片' },
-  { href: '#/archive', label: '归档' },
-  { href: '#/about', label: '关于' },
-]
+  { path: '/', key: 'articles' },
+  { path: '/notes', key: 'notes' },
+  { path: '/archive', key: 'archive' },
+  { path: '/about', key: 'about' },
+] as const
 
 function useRoute() {
-  const [route, setRoute] = useState(() => window.location.hash.slice(1) || '/')
+  const [view, setView] = useState(() =>
+    parseRoute(window.location.hash, preferredLocale()),
+  )
   useEffect(() => {
-    const update = () => setRoute(window.location.hash.slice(1) || '/')
+    const update = () =>
+      setView(parseRoute(window.location.hash, preferredLocale()))
     window.addEventListener('hashchange', update)
     return () => window.removeEventListener('hashchange', update)
   }, [])
-  return route
+  useEffect(() => {
+    const canonical = localeHref(view.locale, view.path)
+    if (window.location.hash !== canonical)
+      window.history.replaceState(window.history.state, '', canonical)
+    document.documentElement.lang = languageTags[view.locale]
+    try {
+      localStorage.setItem('unfinished-locale', view.locale)
+    } catch {
+      /* Language selection works without storage. */
+    }
+  }, [view])
+  return view
 }
 
-function PostMeta({ post }: { post: Post }) {
+function OriginalLabel({ language }: { language: LocalizedPost['language'] }) {
+  const { locale, t } = useI18n()
+  return language === locale ? null : (
+    <span className="translation-label">
+      {t.fallbackNote(languageNames[language])}
+    </span>
+  )
+}
+
+function PostMeta({ post }: { post: LocalizedPost }) {
+  const { t, date } = useI18n()
   return (
     <div className="post-meta">
-      <span className="category-text">{post.category}</span>
+      <span className="category-text">{t.categories[post.category]}</span>
       <span className="meta-dot">·</span>
-      <time dateTime={post.date}>{formatDate(post.date)}</time>
+      <time dateTime={post.date}>{date(post.date)}</time>
       <span className="meta-dot reading-dot">·</span>
-      <span className="reading-time">{post.readingTime} 分钟阅读</span>
+      <span className="reading-time">{t.readingTime(post.readingTime)}</span>
     </div>
   )
 }
 
 function Sidebar() {
+  const { t, href } = useI18n()
   return (
-    <aside className="sidebar" aria-label="博客简介">
+    <aside className="sidebar" aria-label={t.profileLabel}>
       <section className="profile-card">
         <div className="profile-top">
           <span className="profile-avatar">
@@ -47,20 +83,21 @@ function Sidebar() {
           <span className="tiny-label">A LITTLE ABOUT ME</span>
         </div>
         <h3>
-          你好，我是 {site.author}
+          {t.hello(site.author)}
           <span className="hello-dot">.</span>
         </h3>
         <p>
-          一个保持好奇的人。
+          {t.profileFirst}
           <br />
-          在这里，记录探索，也收集日常。
+          {t.profileSecond}
         </p>
-        <a href="#/about" className="text-link">
-          更多关于我 <Icon name="arrow" size={16} />
+        <a href={href('/about')} className="text-link">
+          {t.moreAbout}
+          <Icon name="arrow" size={16} />
         </a>
         <div className="profile-bottom">
           <span className="status-dot" />
-          一个慢慢生长的个人空间
+          {t.personalSpace}
           <Asterisk />
         </div>
       </section>
@@ -70,17 +107,18 @@ function Sidebar() {
           <span>↙</span>
         </div>
         <p>
-          “保持记录，
+          {t.marginFirst}
           <br />
-          是对日常的一点偏爱。”
+          {t.marginSecond}
         </p>
-        <a href="#/notes" className="text-link">
-          看看最近的碎片 <Icon name="arrow" size={16} />
+        <a href={href('/notes')} className="text-link">
+          {t.recentNotes}
+          <Icon name="arrow" size={16} />
         </a>
       </section>
       <div className="garden-status">
         <span className="status-dot" />
-        <span>持续生长中</span>
+        <span>{t.growing}</span>
         <span className="status-line" />
         <span>EST. 2026</span>
       </div>
@@ -89,12 +127,13 @@ function Sidebar() {
 }
 
 function Home() {
-  const [category, setCategory] = useState<Category>('全部')
+  const { t, href, posts, date } = useI18n()
+  const [category, setCategory] = useState<Category>('all')
   const featured = posts.find((post) => post.featured)
   const visible = posts.filter(
     (post) =>
-      (category !== '全部' || post.slug !== featured?.slug) &&
-      (category === '全部' || post.category === category),
+      (category !== 'all' || post.slug !== featured?.slug) &&
+      (category === 'all' || post.category === category),
   )
   return (
     <>
@@ -104,11 +143,11 @@ function Home() {
             <span className="small-line" />A PERSONAL SPACE FOR IDEAS
           </div>
           <h1 id="hero-title">
-            在好奇心里，
+            {t.heroFirst}
             <br />
-            慢慢
+            {t.heroBefore}
             <span className="hero-emphasis">
-              生长
+              {t.heroAccent}
               <svg viewBox="0 0 190 18" fill="none" aria-hidden="true">
                 <path
                   d="M3 12C54 1 112 1 185 7M26 16c47-7 87-8 130-5"
@@ -118,20 +157,21 @@ function Home() {
                 />
               </svg>
             </span>
-            。
+            {t.heroAfter}
           </h1>
           <p>
-            写代码，也写生活。
+            {t.heroLine1}
             <br />
-            把沿途的思考，种在这一小片自留地。
+            {t.heroLine2}
           </p>
-          <a className="hero-link" href="#/about">
-            关于这片小天地 <Icon name="arrowUp" size={17} />
+          <a className="hero-link" href={href('/about')}>
+            {t.heroAbout}
+            <Icon name="arrowUp" size={17} />
           </a>
         </div>
         <GardenArt />
         <div className="hero-bottom">
-          <span>随笔 / 技术 / 生活 / 一切有趣的事</span>
+          <span>{t.heroTopics}</span>
           <span>
             SCROLL TO EXPLORE <span className="down-arrow">↓</span>
           </span>
@@ -147,29 +187,37 @@ function Home() {
               <div className="section-kicker">
                 <h2 id="featured-label">
                   <Asterisk />
-                  精选一篇
+                  {t.featured}
                 </h2>
                 <span className="tiny-label">EDITOR’S PICK / 01</span>
               </div>
-              <a className="featured-card" href={`#/post/${featured.slug}`}>
+              <a
+                className="featured-card"
+                href={href(`/post/${featured.slug}`)}
+              >
                 <div className="featured-visual">
                   <PostArt kind={featured.art} />
                   <span className="featured-art-label">IDEAS TAKE ROOT.</span>
                 </div>
                 <div className="featured-copy">
                   <div className="feature-category">
-                    <span className="category-text">{featured.category}</span>
-                    <span className="featured-badge">置顶</span>
+                    <span className="category-text">
+                      {t.categories[featured.category]}
+                    </span>
+                    <span className="featured-badge">{t.pinned}</span>
                     {featured.sample && (
-                      <span className="sample-label">示例</span>
+                      <span className="sample-label">{t.sample}</span>
                     )}
                   </div>
-                  <h3>{featured.title}</h3>
-                  <p>{featured.summary}</p>
+                  <h3 lang={languageTags[featured.language]}>
+                    {featured.title}
+                  </h3>
+                  <p lang={languageTags[featured.language]}>
+                    {featured.summary}
+                  </p>
+                  <OriginalLabel language={featured.language} />
                   <div className="featured-foot">
-                    <time dateTime={featured.date}>
-                      {formatDate(featured.date)}
-                    </time>
+                    <time dateTime={featured.date}>{date(featured.date)}</time>
                     <span className="circle-arrow">
                       <Icon name="arrowUp" size={19} />
                     </span>
@@ -181,14 +229,14 @@ function Home() {
           <section className="latest-section" aria-labelledby="latest-title">
             <div className="section-kicker latest-heading">
               <h2 id="latest-title">
-                最近的文字
+                {t.latest}
                 <span className="heading-count">
                   {String(posts.length).padStart(2, '0')}
                 </span>
               </h2>
               <span className="tiny-label">THE JOURNAL</span>
             </div>
-            <div className="filter-row" aria-label="按分类筛选文章">
+            <div className="filter-row" aria-label={t.filter}>
               {categories.map((item) => (
                 <button
                   key={item}
@@ -196,35 +244,43 @@ function Home() {
                   aria-pressed={item === category}
                   onClick={() => setCategory(item)}
                 >
-                  {item}
-                  {item === '全部' && <span>{posts.length}</span>}
+                  {t.categories[item]}
+                  {item === 'all' && <span>{posts.length}</span>}
                 </button>
               ))}
               {posts.some((post) => post.sample) && (
-                <span className="sample-label">含示例内容</span>
+                <span className="sample-label">{t.sampleContent}</span>
               )}
             </div>
             <div className="post-list" aria-live="polite">
               {visible.length === 0 && (
                 <div className="empty-state">
-                  <span>这一页，留给新的想法。</span>
-                  <p>这个分类还没有文章，先去其他地方逛逛吧。</p>
+                  <span>{t.emptyTitle}</span>
+                  <p>{t.emptyDescription}</p>
                   <button
                     className="text-link"
-                    onClick={() => setCategory('全部')}
+                    onClick={() => setCategory('all')}
                   >
-                    查看全部 <Icon name="arrow" size={16} />
+                    {t.viewAll}
+                    <Icon name="arrow" size={16} />
                   </button>
                 </div>
               )}
               {visible.map((post) => (
                 <article className="post-row" key={post.slug}>
-                  <a className="post-row-link" href={`#/post/${post.slug}`}>
+                  <a
+                    className="post-row-link"
+                    href={href(`/post/${post.slug}`)}
+                  >
                     <div className="post-row-copy">
                       <PostMeta post={post} />
-                      <h3>{post.title}</h3>
-                      <p>{post.summary}</p>
-                      <div className="post-tags">
+                      <h3 lang={languageTags[post.language]}>{post.title}</h3>
+                      <p lang={languageTags[post.language]}>{post.summary}</p>
+                      <OriginalLabel language={post.language} />
+                      <div
+                        className="post-tags"
+                        lang={languageTags[post.language]}
+                      >
                         {post.tags.map((tag) => (
                           <span key={tag}>#{tag}</span>
                         ))}
@@ -236,10 +292,11 @@ function Home() {
                 </article>
               ))}
             </div>
-            <a href="#/archive" className="archive-link">
-              <span>每一篇，都是生长的痕迹。</span>
+            <a href={href('/archive')} className="archive-link">
+              <span>{t.archiveTrail}</span>
               <span>
-                浏览所有文章 <Icon name="arrow" size={17} />
+                {t.browseAll}
+                <Icon name="arrow" size={17} />
               </span>
             </a>
           </section>
@@ -249,7 +306,8 @@ function Home() {
       <section className="closing-note">
         <Asterisk />
         <p>
-          不急着抵达，<em>先认真路过。</em>
+          {t.closingFirst}
+          <em>{t.closingSecond}</em>
         </p>
         <span className="tiny-label">STAY CURIOUS. KEEP MAKING.</span>
       </section>
@@ -282,12 +340,13 @@ function PageIntro({
 }
 
 function Notes() {
+  const { t, notes, date } = useI18n()
   return (
     <div className="inner-page">
       <PageIntro
         label="SMALL THINGS, BIG FEELINGS"
-        title="生活的边角料"
-        description="还没长成文章的念头，和不想忘记的小事。"
+        title={t.notesTitle}
+        description={t.notesDescription}
       />
       <div className="notes-layout">
         <div className="notes-list">
@@ -295,11 +354,16 @@ function Notes() {
             <article className="note-card" key={note.id}>
               <div className="note-date">
                 <span className="status-dot" />
-                <time dateTime={note.date}>{formatDate(note.date)}</time>
-                {note.sample && <span className="sample-label">示例碎片</span>}
+                <time dateTime={note.date}>{date(note.date)}</time>
+                {note.sample && (
+                  <span className="sample-label">{t.sampleNote}</span>
+                )}
               </div>
-              <p>{note.text}</p>
-              <span className="note-tag">#{note.tag}</span>
+              <p lang={languageTags[note.language]}>{note.text}</p>
+              <OriginalLabel language={note.language} />
+              <span className="note-tag" lang={languageTags[note.language]}>
+                #{note.tag}
+              </span>
               <Asterisk className="note-star" />
             </article>
           ))}
@@ -309,9 +373,9 @@ function Notes() {
           <div className="paper-note">
             <span className="tiny-label">NOTE TO SELF</span>
             <p>
-              不是所有记录
+              {t.paperFirst}
               <br />
-              都需要一个标题。
+              {t.paperSecond}
             </p>
             <svg
               width="53"
@@ -334,21 +398,23 @@ function Notes() {
 }
 
 function Archive() {
+  const { t, posts, date, href } = useI18n()
   const years = [...new Set(posts.map((post) => post.date.slice(0, 4)))]
   return (
     <div className="inner-page">
       <PageIntro
         label="AN INDEX OF CURIOSITY"
-        title="时间的目录"
-        description={`共 ${posts.length} 篇文字。沿着时间，回看每一次思考留下的足迹。`}
+        title={t.archiveTitle}
+        description={t.archiveDescription(posts.length)}
       />
       <div className="archive-summary">
         <span>
-          <Icon name="book" size={18} /> {posts.length} 篇文章
+          <Icon name="book" size={18} />
+          {t.articleCount(posts.length)}
         </span>
-        <span>{categories.length - 1} 个分类</span>
+        <span>{t.categoryCount(categories.length - 1)}</span>
         {posts.some((post) => post.sample) && (
-          <span className="sample-label">含示例内容</span>
+          <span className="sample-label">{t.sampleContent}</span>
         )}
       </div>
       {years.map((year) => (
@@ -367,15 +433,18 @@ function Archive() {
               .filter((post) => post.date.startsWith(year))
               .map((post) => (
                 <a
-                  href={`#/post/${post.slug}`}
+                  href={href(`/post/${post.slug}`)}
                   className="archive-row"
                   key={post.slug}
                 >
-                  <time dateTime={post.date}>
-                    {post.date.slice(5).replace('-', '.')}
-                  </time>
-                  <h3>{post.title}</h3>
-                  <span className="category-text">{post.category}</span>
+                  <time dateTime={post.date}>{date(post.date, true)}</time>
+                  <div className="archive-title">
+                    <h3 lang={languageTags[post.language]}>{post.title}</h3>
+                    <OriginalLabel language={post.language} />
+                  </div>
+                  <span className="category-text">
+                    {t.categories[post.category]}
+                  </span>
                   <Icon name="arrowUp" size={17} />
                 </a>
               ))}
@@ -387,12 +456,13 @@ function Archive() {
 }
 
 function About() {
+  const { t } = useI18n()
   return (
     <div className="inner-page about-page">
       <PageIntro
         label="THE PERSON BEHIND THE WORDS"
-        title="你好，很高兴遇见你"
-        description="这是一个关于探索、创造，以及认真生活的小小空间。"
+        title={t.aboutTitle}
+        description={t.aboutDescription}
       />
       <div className="about-layout">
         <div className="about-copy">
@@ -400,20 +470,18 @@ function About() {
             z<Asterisk />
           </span>
           <h2>
-            我是 {site.author}，<br />
-            一个始终在路上的人。
+            {t.aboutFirst(site.author)}
+            <br />
+            {t.aboutSecond}
           </h2>
           <p>
-            {site.description}{' '}
-            我希望这个博客能像一本随手翻开的笔记，装得下完整的思考，也容得下偶然闪过的念头。
+            {t.description} {t.aboutParagraph}
           </p>
-          <p>
-            这里叫「未完」。因为学习没有终点，想法会继续变化，很多有趣的事情也才刚刚开始。
-          </p>
+          <p>{t.aboutName}</p>
           <div className="about-interests">
-            <span>⌘ 技术与创造</span>
-            <span>◌ 设计与审美</span>
-            <span>↗ 日常与远方</span>
+            {t.interests.map((interest) => (
+              <span key={interest}>{interest}</span>
+            ))}
           </div>
           <a
             className="primary-link"
@@ -421,7 +489,8 @@ function About() {
             target="_blank"
             rel="noreferrer"
           >
-            <Icon name="github" size={18} />在 GitHub 找到我
+            <Icon name="github" size={18} />
+            {t.findGithub}
             <Icon name="arrowUp" size={16} />
           </a>
         </div>
@@ -433,12 +502,12 @@ function About() {
       <div className="about-colophon">
         <div>
           <span className="tiny-label">ABOUT THIS SPACE</span>
-          <h3>一个可以慢慢长大的地方。</h3>
+          <h3>{t.colophonTitle}</h3>
         </div>
         <p>
-          在文字之间留出呼吸，在日常之中保持好奇。
+          {t.colophonFirst}
           <br />
-          欢迎常来坐坐，也祝你找到自己的表达方式。
+          {t.colophonSecond}
         </p>
       </div>
     </div>
@@ -450,6 +519,7 @@ function CodeBlock({
 }: {
   block: Extract<ContentBlock, { type: 'code' }>
 }) {
+  const { t } = useI18n()
   const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -467,14 +537,14 @@ function CodeBlock({
     <div className="code-block">
       <div className="code-heading">
         <span>{block.language}</span>
-        <button onClick={copy} aria-label="复制代码">
+        <button onClick={copy} aria-label={t.copyCode}>
           <Icon name={status === 'copied' ? 'check' : 'copy'} size={15} />
           <span aria-live="polite">
             {status === 'copied'
-              ? '已复制'
+              ? t.copied
               : status === 'failed'
-                ? '请手动复制'
-                : '复制'}
+                ? t.copyFailed
+                : t.copy}
           </span>
         </button>
       </div>
@@ -485,7 +555,8 @@ function CodeBlock({
   )
 }
 
-function Article({ post }: { post: Post }) {
+function Article({ post }: { post: LocalizedPost }) {
+  const { t, posts, locale, href } = useI18n()
   const headings = post.content.filter((block) => block.type === 'heading')
   const next =
     posts[
@@ -493,70 +564,83 @@ function Article({ post }: { post: Post }) {
     ]
   return (
     <div className="article-page">
-      <a className="back-link" href="#/">
+      <a className="back-link" href={href()}>
         <Icon name="arrow" size={17} />
-        回到全部文章
+        {t.backArticles}
       </a>
       <header className="article-header">
         <PostMeta post={post} />
-        <h1>{post.title}</h1>
-        <p className="article-summary">{post.summary}</p>
+        <h1 lang={languageTags[post.language]}>{post.title}</h1>
+        <p className="article-summary" lang={languageTags[post.language]}>
+          {post.summary}
+        </p>
         <div className="article-byline">
           <span className="mini-avatar">z</span>
           <span>{site.author}</span>
           <span className="byline-divider" />
-          <span>文字，慢慢生长。</span>
+          <span>{t.byline}</span>
         </div>
       </header>
       <div className="article-layout">
-        <article className="prose" aria-label="文章正文">
+        <article className="prose" aria-label={t.articleBody}>
+          {post.language !== locale && (
+            <div className="translation-notice">
+              <p>{t.fallback(languageNames[post.language])}</p>
+              <a href={localeHref(post.language, `/post/${post.slug}`)}>
+                {t.original}
+                <Icon name="arrow" size={16} />
+              </a>
+            </div>
+          )}
           {post.sample && (
             <div className="sample-notice">
               <Icon name="book" size={18} />
-              <span>这是一篇示例文章，用来展示阅读与排版效果。</span>
+              <span>{t.sampleNotice}</span>
             </div>
           )}
-          {post.content.map((block, index) => {
-            switch (block.type) {
-              case 'heading':
-                return (
-                  <h2 id={block.id} key={block.id}>
-                    {block.text}
-                  </h2>
-                )
-              case 'paragraph':
-                return <p key={index}>{block.text}</p>
-              case 'quote':
-                return (
-                  <blockquote key={index}>
-                    <p>{block.text}</p>
-                  </blockquote>
-                )
-              case 'list':
-                return (
-                  <ul key={index}>
-                    {block.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                )
-              case 'code':
-                return <CodeBlock key={index} block={block} />
-            }
-          })}
+          <div className="article-content" lang={languageTags[post.language]}>
+            {post.content.map((block, index) => {
+              switch (block.type) {
+                case 'heading':
+                  return (
+                    <h2 id={block.id} key={block.id}>
+                      {block.text}
+                    </h2>
+                  )
+                case 'paragraph':
+                  return <p key={index}>{block.text}</p>
+                case 'quote':
+                  return (
+                    <blockquote key={index}>
+                      <p>{block.text}</p>
+                    </blockquote>
+                  )
+                case 'list':
+                  return (
+                    <ul key={index}>
+                      {block.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  )
+                case 'code':
+                  return <CodeBlock key={index} block={block} />
+              }
+            })}
+          </div>
           <div className="article-end">
             <Asterisk />
-            <span>写到这里，下次继续。</span>
+            <span>{t.articleEnd}</span>
           </div>
-          <div className="article-tags">
+          <div className="article-tags" lang={languageTags[post.language]}>
             {post.tags.map((tag) => (
               <span key={tag}>#{tag}</span>
             ))}
           </div>
           {next && next.slug !== post.slug && (
-            <a href={`#/post/${next.slug}`} className="next-post">
-              <span className="tiny-label">接着读 / UP NEXT</span>
-              <h3>
+            <a href={href(`/post/${next.slug}`)} className="next-post">
+              <span className="tiny-label">{t.upNext}</span>
+              <h3 lang={languageTags[next.language]}>
                 {next.title}
                 <Icon name="arrow" />
               </h3>
@@ -564,8 +648,8 @@ function Article({ post }: { post: Post }) {
           )}
         </article>
         <aside className="article-toc">
-          <span className="tiny-label">这篇文章里</span>
-          <nav aria-label="文章目录">
+          <span className="tiny-label">{t.toc}</span>
+          <nav aria-label={t.tocLabel} lang={languageTags[post.language]}>
             {headings.map((heading, index) => (
               <button
                 key={heading.id}
@@ -583,15 +667,15 @@ function Article({ post }: { post: Post }) {
                   target?.focus({ preventScroll: true })
                 }}
               >
-                <span>0{index + 1}</span>
+                <span>{String(index + 1).padStart(2, '0')}</span>
                 {heading.text}
               </button>
             ))}
           </nav>
           <div className="toc-note">
-            一段文字，
+            {t.tocFirst}
             <br />
-            一小块属于自己的时间。
+            {t.tocSecond}
           </div>
         </aside>
       </div>
@@ -600,21 +684,23 @@ function Article({ post }: { post: Post }) {
 }
 
 function NotFound() {
+  const { t, href } = useI18n()
   return (
     <div className="not-found">
       <span className="eyebrow">404 / A PATH NOT YET PLANTED</span>
       <Asterisk />
-      <h1>这条小径，还没有开辟。</h1>
-      <p>文章可能已经搬家，也许我们可以从首页重新出发。</p>
-      <a className="primary-link" href="#/">
-        回到首页 <Icon name="arrow" size={17} />
+      <h1>{t.notFoundTitle}</h1>
+      <p>{t.notFoundDescription}</p>
+      <a className="primary-link" href={href()}>
+        {t.backHome}
+        <Icon name="arrow" size={17} />
       </a>
     </div>
   )
 }
 
-function App() {
-  const route = useRoute()
+function AppShell({ route }: { route: string }) {
+  const { locale, t, posts, href } = useI18n()
   const [theme, setTheme] = useState(
     () => document.documentElement.dataset.theme || 'light',
   )
@@ -625,7 +711,7 @@ function App() {
   const post = route.startsWith('/post/')
     ? posts.find((item) => item.slug === route.slice(6))
     : undefined
-  const activeNav = route.startsWith('/post/') ? '#/' : `#${route}`
+  const activeNav = route.startsWith('/post/') ? '/' : route
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     document
@@ -638,20 +724,21 @@ function App() {
     }
   }, [theme])
   useEffect(() => {
-    const title =
-      post?.title ||
-      navigation.find((item) => item.href === `#${route}`)?.label ||
-      '页面未找到'
+    const nav = navigation.find((item) => item.path === route)
+    const title = post?.title || (nav ? t.nav[nav.key] : t.notFound)
     document.title =
       route === '/'
-        ? `${site.name} · ${site.author} 的数字花园`
+        ? `${site.name} · ${t.homeTitle(site.author)}`
         : `${title} · ${site.name}`
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute('content', post?.summary || t.description)
     if (previousRoute.current !== route) {
       window.scrollTo({ top: 0, behavior: 'instant' })
       main.current?.focus({ preventScroll: true })
       previousRoute.current = route
     }
-  }, [route, post])
+  }, [route, post, t])
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -673,31 +760,31 @@ function App() {
           main.current?.focus()
         }}
       >
-        跳到主要内容
+        {t.skip}
       </a>
       <header className="site-header">
         <div className="header-inner">
           <a
-            href="#/"
+            href={href()}
             className="brand"
-            aria-label={`${site.name}，回到首页`}
+            aria-label={`${site.name} · ${t.backHome}`}
             onClick={() => setMenuOpen(false)}
           >
             <Asterisk />
             <span className="brand-name">
               {site.name}
-              <span>未完待续，慢慢书写。</span>
+              <span>{t.tagline}</span>
             </span>
           </a>
           <div className="header-right">
-            <nav className="desktop-nav" aria-label="主导航">
+            <nav className="desktop-nav" aria-label={t.mainNav}>
               {navigation.map((item) => (
                 <a
-                  key={item.href}
-                  href={item.href}
-                  aria-current={activeNav === item.href ? 'page' : undefined}
+                  key={item.path}
+                  href={href(item.path)}
+                  aria-current={activeNav === item.path ? 'page' : undefined}
                 >
-                  {item.label}
+                  {t.nav[item.key]}
                 </a>
               ))}
             </nav>
@@ -705,18 +792,42 @@ function App() {
               <button
                 className="search-trigger"
                 onClick={() => setSearchOpen(true)}
-                aria-label="搜索文章"
+                aria-label={t.searchLabel}
               >
                 <Icon name="search" size={18} />
                 <kbd>Ctrl K</kbd>
               </button>
+              <label className="language-picker">
+                <span className="language-symbol" aria-hidden="true">
+                  文
+                </span>
+                <select
+                  aria-label={t.language}
+                  value={locale}
+                  onChange={(event) => {
+                    const selected = event.target.value
+                    if (isLocale(selected)) {
+                      setMenuOpen(false)
+                      window.location.hash = localeHref(selected, route)
+                    }
+                  }}
+                >
+                  {locales.map((language) => (
+                    <option
+                      key={language}
+                      value={language}
+                      lang={languageTags[language]}
+                    >
+                      {languageNames[language]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <span className="tool-divider" />
               <button
                 className="icon-button theme-toggle"
                 onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                aria-label={
-                  theme === 'light' ? '切换到深色主题' : '切换到浅色主题'
-                }
+                aria-label={theme === 'light' ? t.dark : t.light}
               >
                 <Icon name={theme === 'light' ? 'sun' : 'moon'} size={20} />
               </button>
@@ -725,7 +836,7 @@ function App() {
                 onClick={() => setMenuOpen(!menuOpen)}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-navigation"
-                aria-label={menuOpen ? '关闭导航' : '打开导航'}
+                aria-label={menuOpen ? t.closeMenu : t.openMenu}
               >
                 <Icon name={menuOpen ? 'close' : 'menu'} />
               </button>
@@ -736,16 +847,16 @@ function App() {
           <nav
             id="mobile-navigation"
             className="mobile-nav"
-            aria-label="移动端主导航"
+            aria-label={t.mobileNav}
           >
             {navigation.map((item) => (
               <a
-                href={item.href}
-                key={item.href}
-                aria-current={activeNav === item.href ? 'page' : undefined}
+                href={href(item.path)}
+                key={item.path}
+                aria-current={activeNav === item.path ? 'page' : undefined}
                 onClick={() => setMenuOpen(false)}
               >
-                {item.label}
+                {t.nav[item.key]}
                 <Icon name="arrowUp" size={16} />
               </a>
             ))}
@@ -779,13 +890,13 @@ function App() {
           </div>
           <p>
             © {new Date().getFullYear()} {site.author}
-            <span>保持好奇，未完待续。</span>
+            <span>{t.footer}</span>
           </p>
           <a
             href={site.github}
             target="_blank"
             rel="noreferrer"
-            aria-label="访问 GitHub 主页"
+            aria-label={t.github}
           >
             <Icon name="github" size={17} />
             <span>GitHub</span>
@@ -795,6 +906,16 @@ function App() {
       </footer>
       <Search open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
+  )
+}
+
+function App() {
+  const view = useRoute()
+  const value = useMemo(() => createI18n(view.locale), [view.locale])
+  return (
+    <I18nContext.Provider value={value}>
+      <AppShell route={view.path} />
+    </I18nContext.Provider>
   )
 }
 

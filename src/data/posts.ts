@@ -1,26 +1,6 @@
-export const categories = ['全部', '技术', '设计', '生活', '思考'] as const
-export type Category = (typeof categories)[number]
-
-export type ContentBlock =
-  | { type: 'paragraph'; text: string }
-  | { type: 'heading'; text: string; id: string }
-  | { type: 'quote'; text: string }
-  | { type: 'list'; items: string[] }
-  | { type: 'code'; language: string; text: string }
-
-export interface Post {
-  slug: string
-  title: string
-  summary: string
-  date: string
-  category: Exclude<Category, '全部'>
-  tags: string[]
-  readingTime: number
-  art: 'garden' | 'space' | 'code' | 'walk' | 'notes'
-  featured?: boolean
-  sample?: boolean
-  content: ContentBlock[]
-}
+import type { Post, Note } from './types.ts'
+export { categories } from './types.ts'
+export type { Category, ContentBlock, Post } from './types.ts'
 
 // 展示用内容。发布自己的文章时，新增一项并移除 sample 标记即可。
 const entries: Post[] = [
@@ -30,7 +10,7 @@ const entries: Post[] = [
     summary:
       '不必等到想法成熟才落笔。让零散的念头在这里扎根，在时间里，长成自己的样子。',
     date: '2026-09-12',
-    category: '思考',
+    category: 'thoughts',
     tags: ['数字花园', '写作', '长期主义'],
     readingTime: 3,
     art: 'garden',
@@ -88,7 +68,7 @@ const entries: Post[] = [
     summary:
       '好的界面不总是关于增加什么。有时候，退后一步，才会看见真正重要的东西。',
     date: '2026-09-10',
-    category: '设计',
+    category: 'design',
     tags: ['界面设计', '排版'],
     readingTime: 2,
     art: 'space',
@@ -130,7 +110,7 @@ const entries: Post[] = [
     summary:
       '命名、边界与一点点耐心。比起聪明的写法，我开始更喜欢那些一眼就能读懂的代码。',
     date: '2026-09-08',
-    category: '技术',
+    category: 'tech',
     tags: ['编程', '开发笔记'],
     readingTime: 2,
     art: 'code',
@@ -167,7 +147,7 @@ const entries: Post[] = [
     title: '在散步时，找回注意力',
     summary: '收起耳机，不设目的地。把一个傍晚，交还给街道、树影和路过的风。',
     date: '2026-09-05',
-    category: '生活',
+    category: 'life',
     tags: ['日常', '观察'],
     readingTime: 2,
     art: 'walk',
@@ -195,7 +175,7 @@ const entries: Post[] = [
     title: '建立一个轻盈的个人知识系统',
     summary: '收藏不是理解，整理也不是目的。让笔记真正回到思考与创造的过程里。',
     date: '2026-09-01',
-    category: '技术',
+    category: 'tech',
     tags: ['笔记', '知识管理'],
     readingTime: 2,
     art: 'notes',
@@ -230,7 +210,7 @@ const entries: Post[] = [
 
 export const posts = entries.sort((a, b) => b.date.localeCompare(a.date))
 
-export const notes = [
+export const notes: Note[] = [
   {
     id: 'small-beginnings',
     date: '2026-09-12',
@@ -253,7 +233,3 @@ export const notes = [
     sample: true,
   },
 ]
-
-export function formatDate(date: string) {
-  return date.replaceAll('-', '.')
-}
