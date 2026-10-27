@@ -54,8 +54,32 @@ for (const locale of locales) {
   })
 }
 
+// 文章内容可能为空，翻译逻辑的测试使用固定样例
+const fixture = {
+  slug: 'fixture-post',
+  title: '测试文章',
+  summary: '测试摘要',
+  date: '2026-09-12',
+  category: 'tech',
+  tags: ['测试'],
+  readingTime: 1,
+  art: 'code',
+  featured: true,
+  content: [{ type: 'paragraph', text: '正文' }],
+}
+const fixtureTranslations = {
+  en: {
+    'fixture-post': {
+      title: 'Test post',
+      summary: 'Test summary',
+      tags: ['test'],
+      content: [{ type: 'paragraph', text: 'Body' }],
+    },
+  },
+}
+
 test('missing translations preserve the source and expose its language honestly', () => {
-  const source = { ...posts[0], slug: 'not-translated-yet' }
+  const source = fixture
   const fallback = localizePost(source, 'ja')
   assert.equal(fallback.language, 'zh')
   assert.equal(fallback.title, source.title)
@@ -64,8 +88,8 @@ test('missing translations preserve the source and expose its language honestly'
 })
 
 test('a translated article keeps identity and shared metadata', () => {
-  const source = posts[0]
-  const translated = localizePost(source, 'en')
+  const source = fixture
+  const translated = localizePost(source, 'en', fixtureTranslations)
   assert.equal(translated.slug, source.slug)
   assert.equal(translated.date, source.date)
   assert.equal(translated.art, source.art)
